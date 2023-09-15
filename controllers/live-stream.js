@@ -27,7 +27,7 @@ exports.getLiveMarketData = async (req, res, next) => {
     };
 
     // Send the subscription payload as JSON
-    ws.send(JSON.stringify(subscriptionPayload));
+    await ws.send(JSON.stringify(subscriptionPayload));
 
     ws.on('open', () => {
         console.log('Connected to Capital.com data stream');
