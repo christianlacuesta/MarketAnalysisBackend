@@ -1,10 +1,12 @@
 const WebSocket = require('ws');
 const sequelize = require('../helpers/database');
-const { Op, Sequelize } = require("sequelize");
 const { QueryTypes } = require('sequelize');
+const priceTrend = require('../functions/price-trend');
 
 const streamUrl = 'wss://api-streaming-capital.backend-capital.com/connect';
 const ws = new WebSocket(streamUrl);
+
+const priceStream = [];
 
 exports.getLiveMarketData = async (req, res, next) => {
 
@@ -28,7 +30,7 @@ exports.getLiveMarketData = async (req, res, next) => {
 
     // Send the subscription payload as JSON
     await ws.send(JSON.stringify(subscriptionPayload));
-
+    console.log('xx')
     ws.on('open', () => {
         console.log('Connected to Capital.com data stream');
         
@@ -36,7 +38,10 @@ exports.getLiveMarketData = async (req, res, next) => {
     
     ws.on('message', (data) => {
         const message = JSON.parse(data);
-        console.log('Received data:', message);
+        priceStream.push(message.payload.bid);
+        const trend = priceTrend.analyzePriceTrend(priceStream);
+        console.log(`Price Trend: ${trend} - ${message.payload.bid}`);
+        //console.log('Received data:', message);
         // Process the received data here
     });
     
