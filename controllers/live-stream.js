@@ -22,7 +22,7 @@ exports.getLiveMarketData = async (req, res, next) => {
         cst: response[0].sessionInfo.sessionInfo.cst,
         securityToken: response[0].sessionInfo.sessionInfo.securityToken,
         payload: {
-            epics: ['BTCUSD']
+            epics: [req.body.epic]
         }
     };
 
