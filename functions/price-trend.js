@@ -1,8 +1,8 @@
 
 
 // Parameters for analysis
-const windowSize = 500; // Adjust this for your desired window size
-const priceChangeThreshold = 0.02; // Adjust this for your desired threshold
+const windowSize = 100; // Adjust this for your desired window size
+const priceChangeThreshold = 0.00002; // Adjust this for your desired threshold
 
 // Function to calculate the moving average
 function calculateMovingAverage(prices) {
@@ -26,15 +26,15 @@ exports.analyzePriceTrend = (prices) => {
 
     // Calculate the rate of change
     const rateOfChange = (currentMovingAverage - previousMovingAverage) / previousMovingAverage;
-
+    console.log(rateOfChange)
     if (rateOfChange > priceChangeThreshold) {
-        if (rateOfChange > 0.05) {
+        if (rateOfChange > 0.00005) {
             return "Going Up Fast";
         } else {
             return "Going Up Slowly";
         }
     } else if (rateOfChange < -priceChangeThreshold) {
-        if (rateOfChange < -0.05) {
+        if (rateOfChange < -0.00005) {
             return "Falling Down Fast";
         } else {
             return "Falling Down Slowly";

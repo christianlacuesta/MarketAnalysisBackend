@@ -1,10 +1,12 @@
 
-const CapitalSession = require('../models/capital-session');
+const CapitalSession = require('../models/capital-session-log');
+const PingStream = require('../functions/ping-stream');
 const baseUrlLive = 'https://api-capital.backend-capital.com/';
 const baseUrlDemo = 'https://demo-api-capital.backend-capital.com/';
 const sessionUrl = 'https://api-capital.backend-capital.com/api/v1/session';
+const cache = require('memory-cache');
 
-const reqBody = {
+  const reqBody = {
     body: {
       apiKey: null,
       email: null,
@@ -12,6 +14,9 @@ const reqBody = {
     }
   }
 
+  exports.sessionCredentials = async () => {
+    return reqBody
+  }
 
   exports.createNewSession = async (req, res, next) => {
 
@@ -19,12 +24,14 @@ const reqBody = {
     reqBody.body.email = req.body.email;
     reqBody.body.password = req.body.password;
 
+    cache.put('reqBody', reqBody);
+
     const defaultParams = {
         apiKey: req.body.apiKey,
         email: req.body.email,
         password: req.body.password
       };
-  
+
       let raw = JSON.stringify({
         "identifier": defaultParams.email,
         "password": defaultParams.password
@@ -58,6 +65,10 @@ const reqBody = {
             }
         }
 
+        // Service Pinger to keep connection alive
+
+        PingStream.pingStream(sessionInfo);
+
         try {
 
           const session = await fetch(sessionUrl, requestOptions)
@@ -67,7 +78,7 @@ const reqBody = {
             
             return error;
         
-        });
+          });
 
           if (session) {
             const sessionCopy = Object.assign(JSON.parse(session), {sessionInfo: sessionInfo});
@@ -78,38 +89,64 @@ const reqBody = {
 
             } else {
 
-              CapitalSession.create({
+              const sessionInfo = await CapitalSession.create({
                 sessionInfo: sessionCopy,
               })
               .then(sessionInfo => { 
+
+                if (res && res.status) {
+
                   res.status(201).json({
-                      message: 'Post Success',
-                      post: sessionInfo
+                    message: 'Post Success',
+                    post: sessionInfo
                   });
+
+                  return sessionInfo;
+
+                } else {
+
+                  return sessionInfo;
+                }
               })
               .catch(err => { 
                   console.log(err) 
               });
 
-            }
+              return sessionInfo;
 
+            }
 
           } else {
 
             res.status(200).json('Error');
-
+     
+            return 'error';
           }
 
 
-        } catch {
+        } catch(err) {
 
-            res.status(200).json('Error');
+          if (res && res.status) {
+
+            res.status(200).json(`Error: ${err}`);
+
+          } else {
+
+            console.log(`Error: ${err}`)
+
+            console.log('error: 129... reconnecting...');
+
+            const cacheReqBody = cache.get('reqBody');
+
+            this.createNewSession(cacheReqBody);
+
+          }
 
         }
 
       } else {
 
-        return null;
+        return 'error';
 
       }
   
