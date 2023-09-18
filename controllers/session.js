@@ -24,7 +24,9 @@ const cache = require('memory-cache');
     reqBody.body.email = req.body.email;
     reqBody.body.password = req.body.password;
 
-    cache.put('reqBody', reqBody);
+    if (req.body.email) {
+      cache.put('reqBody', reqBody);
+    }
 
     const defaultParams = {
         apiKey: req.body.apiKey,
@@ -94,7 +96,7 @@ const cache = require('memory-cache');
               })
               .then(sessionInfo => { 
 
-                if (res && res.status) {
+                if (res || res.status) {
 
                   res.status(201).json({
                     message: 'Post Success',
@@ -126,21 +128,13 @@ const cache = require('memory-cache');
 
         } catch(err) {
 
-          if (res && res.status) {
+          console.log(`Error: ${err}`)
 
-            res.status(200).json(`Error: ${err}`);
+          console.log('error: 129... reconnecting...');
 
-          } else {
-
-            console.log(`Error: ${err}`)
-
-            console.log('error: 129... reconnecting...');
-
-            const cacheReqBody = cache.get('reqBody');
-
-            this.createNewSession(cacheReqBody);
-
-          }
+          const cacheReqBody = cache.get('reqBody');
+          console.log(cacheReqBody)
+          this.createNewSession(cacheReqBody);
 
         }
 

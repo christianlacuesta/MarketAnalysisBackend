@@ -3,12 +3,14 @@ const sequelize = require('../helpers/database');
 const { QueryTypes } = require('sequelize');
 const priceTrend = require('../functions/price-trend');
 const sessionController = require('../controllers/session');
+const priceStrategy = require('../functions/price-strategy');
 const cache = require('memory-cache');
 
 const streamUrl = 'wss://api-streaming-capital.backend-capital.com/connect';
 const ws = new WebSocket(streamUrl);
 
 const priceStream = [];
+const priceData = [];
 
 // Create the subscription payload
 const subscriptionPayload = {
@@ -58,8 +60,14 @@ exports.getLiveMarketData = async (req, res, next) => {
 
         console.log(`Price Trend: ${trend} - ${message.payload.bid}`);
 
-        //console.log('Received data:', message);
+        priceData.push({
+            price: message.payload.bid,
+            status: trend,
+            time: message.payload.timestamp
+        });
 
+        const recommendations = await priceStrategy.recommendations(priceData);
+        console.log('Recommendation:', recommendations);
     });
     
     ws.on('close', async () => {
