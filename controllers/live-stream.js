@@ -26,7 +26,7 @@ const subscriptionPayload = {
 exports.getLiveMarketData = async (req, res, next) => {
 
     const sessionCredentials = await sessionController.sessionCredentials();
-
+    console.log(`session credentials: ${sessionCredentials}`)
     cache.put('reqBody', sessionCredentials);
     cache.put('epic', [req.body.epic]);
 
@@ -34,7 +34,7 @@ exports.getLiveMarketData = async (req, res, next) => {
 
     const response = await sequelize.query(`select * from ${tableName}  ORDER BY sessionId DESC LIMIT 1`, {
         type: QueryTypes.SELECT
-    }).catch(err => {console.log(err);});
+    }).catch(err => {console.log(`Error37: ${err}`);});
 
     subscriptionPayload.payload.epics = [req.body.epic];
     subscriptionPayload.cst = response[0].sessionInfo.sessionInfo.cst;
@@ -45,11 +45,9 @@ exports.getLiveMarketData = async (req, res, next) => {
   
     const connectStream = await ws.on('open', () => {
         console.log('Connected to Capital.com data stream');
-
         return 'Connected to Capital.com data stream';
     });
 
-    console.log(connectStream)
     ws.on('message', async (data) => {
         const message = JSON.parse(data);
         priceStream.push(message.payload.bid);
@@ -60,14 +58,16 @@ exports.getLiveMarketData = async (req, res, next) => {
 
         console.log(`Price Trend: ${trend} - ${message.payload.bid}`);
 
-        priceData.push({
+        const currentPriceStream = {
             price: message.payload.bid,
             status: trend,
             time: message.payload.timestamp
-        });
+        };
 
-        const recommendations = await priceStrategy.recommendations(priceData);
-        console.log('Recommendation:', recommendations);
+        priceData.push(currentPriceStream);
+
+        const recommendations = await priceStrategy.recommendations(priceData, subscriptionPayload, req.body.epic);
+        //console.log('Recommendation:', recommendations);
     });
     
     ws.on('close', async () => {
@@ -78,11 +78,21 @@ exports.getLiveMarketData = async (req, res, next) => {
 
         const newSession = await sessionController.createNewSession(reqBody);
 
-        await this.getLiveMarketData({
+        const marketData = await this.getLiveMarketData({
             body: {
               epic: cache.get('reqBody')
             }
-        })
+        });
+
+        if (!marketData) {
+            const marketData2 = await this.getLiveMarketData({
+                body: {
+                  epic: cache.get('reqBody')
+                }
+            });
+        }
+
+        console.log(`market data: ${marketData}`);   
     });
     
     ws.on('error', (error) => {

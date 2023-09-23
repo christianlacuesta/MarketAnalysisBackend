@@ -20,11 +20,13 @@ const cache = require('memory-cache');
 
   exports.createNewSession = async (req, res, next) => {
 
+    const cacheReqBody = cache.get('reqBody');
+
     reqBody.body.apiKey = req.body.apiKey;
     reqBody.body.email = req.body.email;
     reqBody.body.password = req.body.password;
 
-    if (req.body.email) {
+    if (!cacheReqBody) {
       cache.put('reqBody', reqBody);
     }
 
@@ -78,51 +80,44 @@ const cache = require('memory-cache');
           .then(result => {return result})
           .catch(error => {
             
-            return error;
+            return `error82: ${error}`;
         
           });
 
           if (session) {
             const sessionCopy = Object.assign(JSON.parse(session), {sessionInfo: sessionInfo});
-
             if (sessionCopy.errorCode) {
-
+              if (res && res.status) {
                 res.status(200).json(sessionCopy.errorCode);
-
+              } else {               
+                return sessionCopy.errorCode;
+              }
             } else {
-
               const sessionInfo = await CapitalSession.create({
                 sessionInfo: sessionCopy,
               })
               .then(sessionInfo => { 
-
-                if (res || res.status) {
-
+                if (res && res.status) {
                   res.status(201).json({
                     message: 'Post Success',
                     post: sessionInfo
                   });
-
                   return sessionInfo;
-
                 } else {
-
                   return sessionInfo;
                 }
               })
               .catch(err => { 
                   console.log(err) 
               });
-
               return sessionInfo;
-
             }
 
           } else {
 
             res.status(200).json('Error');
      
-            return 'error';
+            return `error126: error`;
           }
 
 
@@ -130,17 +125,17 @@ const cache = require('memory-cache');
 
           console.log(`Error: ${err}`)
 
-          console.log('error: 129... reconnecting...');
+          console.log('error129: reconnecting...');
 
-          const cacheReqBody = cache.get('reqBody');
-          console.log(cacheReqBody)
+          const newCacheReqBody = cache.get('reqBody');
+          console.log(newCacheReqBody)
           this.createNewSession(cacheReqBody);
 
         }
 
       } else {
 
-        return 'error';
+        return 'error144';
 
       }
   

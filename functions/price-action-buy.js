@@ -1,2 +1,5 @@
 
 
+exports.priceActionBuy = () => {
+    
+}
