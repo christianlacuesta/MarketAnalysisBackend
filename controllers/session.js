@@ -1,6 +1,6 @@
 
 const CapitalSession = require('../models/capital-session-log');
-const PingStream = require('../functions/ping-stream');
+const PingStream = require('../functions/m-connection/ping-stream');
 const baseUrlLive = 'https://api-capital.backend-capital.com/';
 const baseUrlDemo = 'https://demo-api-capital.backend-capital.com/';
 const sessionUrl = 'https://api-capital.backend-capital.com/api/v1/session';
@@ -90,7 +90,7 @@ const cache = require('memory-cache');
               if (res && res.status) {
                 res.status(200).json(sessionCopy.errorCode);
               } else {               
-                return sessionCopy.errorCode;
+                return `error93: ${sessionCopy.errorCode}`;
               }
             } else {
               const sessionInfo = await CapitalSession.create({
@@ -108,7 +108,7 @@ const cache = require('memory-cache');
                 }
               })
               .catch(err => { 
-                  console.log(err) 
+                  console.log(`error93: ${err}`) 
               });
               return sessionInfo;
             }

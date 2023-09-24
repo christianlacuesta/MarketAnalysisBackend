@@ -5,6 +5,8 @@ const sequelize = require('./helpers/database');
 
 const sessionRoutes = require('./routes/session');
 const liveStreamRoutes = require('./routes/live-stream');
+const marketDataRoutes = require('./routes/market-data');
+const summaryRoutes = require('./routes/summary-analysis');
 
 // const fileRoutes = require('./routes/upload');  
 
@@ -26,6 +28,8 @@ app.use((req, res, next) => {
 
 app.use('/api/session', sessionRoutes);
 app.use('/api/live-stream', liveStreamRoutes);
+app.use('/api/market-data', marketDataRoutes);
+app.use('/api/summary', summaryRoutes);
 
 app.use((error, req, res, next) => {
     console.log(error);

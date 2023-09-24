@@ -1,7 +1,10 @@
 const CapitalPosition = require('../models/capital-position');
-const CapitalSell = require('../functions/capital-sell');
-const CapitalBuy = require('../functions/capital-buy');
-const CapitalClose = require('../functions/capital.close');
+const CapitalClosedPosition = require('../models/capital-closed');
+const CapitalSell = require('./m-orders/capital-sell');
+const CapitalBuy = require('./m-orders/capital-buy');
+const CapitalClose = require('./m-orders/capital.close');
+const sequelize = require('../helpers/database');
+const { QueryTypes } = require('sequelize');
 const cache = require('memory-cache');
 
 exports.recommendations = async(dataStream, sessionInfo, epic) => {
@@ -60,17 +63,36 @@ exports.recommendations = async(dataStream, sessionInfo, epic) => {
     statusChanges.push({ ...currentStatusChange });
   }
 
-  const position = cache.get('position');
+
+
+  let position = null;
+
   const buyInfo = cache.get('buyInfo');
+
+  let savedPosition = cache.get('savedPosition');
 
   const lastObjects = statusChanges.slice(-4);
 
   const currentStrPrice = dataStream[dataStream.length - 1].price;
 
-  const dummyBuy = {"date":"2023-09-21T06:20:56.874","status":"OPEN","reason":"SUCCESS","dealStatus":"ACCEPTED","epic":"BTCUSD","dealReference":"o_f812d363-2d29-4655-8e65-6714292ceddc","dealId":"000940dd-0001-54c4-0000-000083039cb8","affectedDeals":[{"dealId":"000940dd-0001-54c4-0000-000083039cb9","status":"OPENED"}],"level":27074.25,"size":0.01,"direction":"BUY","guaranteedStop":false,"trailingStop":false};
+  const tableName = '`market-analysis`.`capital-positions`';
 
+  if (!savedPosition) {
+    const newSavedPosition = await sequelize.query(`select * from ${tableName}`, {
+      type: QueryTypes.SELECT
+    }).catch(err => {console.log(`Error37: ${err}`);});
+
+    cache.put('savedPosition', newSavedPosition);
+  }
+
+  if (cache.get('savedPosition').length > 0) {
+    position = JSON.parse(cache.get('savedPosition')[0].positionInfo);
+  } else {
+    position = cache.get('position');
+  }
+  
   if (!position && !buyInfo) {
-    
+ 
     if ((lastObjects[0].status === 'Falling Down Fast' && lastObjects[0].timeTaken > 100000) && 
     (lastObjects[1].status === 'Going Up Fast')) {
 
@@ -82,16 +104,8 @@ exports.recommendations = async(dataStream, sessionInfo, epic) => {
 
       cache.put('position', buyPosition);
 
-      const positionInfo = await CapitalPosition.create({
-        positionInfo: buyPosition,
-      })
-      .then(positionInfo => { 
+      const positionInfo = await saveBuy({ positionInfo: buyPosition });
 
-          return positionInfo;
-      })
-      .catch(err => { 
-          console.log(err) 
-      });
     } else if ((lastObjects[0].status === 'Falling Down Fast' && lastObjects[0].timeTaken > 100000) && 
     (lastObjects[1].status === 'Steady')) {
 
@@ -103,16 +117,8 @@ exports.recommendations = async(dataStream, sessionInfo, epic) => {
 
       cache.put('position', buyPosition);
 
-      const positionInfo = await CapitalPosition.create({
-        positionInfo: buyPosition,
-      })
-      .then(positionInfo => { 
+      const positionInfo = await saveBuy({ positionInfo: buyPosition });
 
-          return positionInfo;
-      })
-      .catch(err => { 
-          console.log(err) 
-      });
     } else if ((lastObjects[0].status === 'Falling Down Fast' && lastObjects[0].timeTaken > 100000) && 
     (lastObjects[1].status === 'Steady') && (lastObjects[2].status === 'Going Up Fast')) {
   
@@ -123,6 +129,8 @@ exports.recommendations = async(dataStream, sessionInfo, epic) => {
       const buyPosition = await CapitalBuy.createBuyPosition(sessionInfo, epic);
 
       cache.put('position', buyPosition);
+
+      const positionInfo = await saveBuy({ positionInfo: buyPosition });
 
     } else if ((lastObjects[0].status === 'Falling Down Fast' && lastObjects[0].timeTaken > 100000) && 
     (lastObjects[1].status === 'Steady') && (lastObjects[2].status === 'Going Up Fast')) {
@@ -135,16 +143,7 @@ exports.recommendations = async(dataStream, sessionInfo, epic) => {
 
       cache.put('position', buyPosition);
 
-      const positionInfo = await CapitalPosition.create({
-        positionInfo: buyPosition,
-      })
-      .then(positionInfo => { 
-
-          return positionInfo;
-      })
-      .catch(err => { 
-          console.log(err) 
-      });
+      const positionInfo = await saveBuy({ positionInfo: buyPosition });
 
     } else if ((lastObjects[0].status === 'Falling Down Fast' && lastObjects[0].timeTaken > 100000) && 
     (lastObjects[1].status === 'Falling Down Slowly') && 
@@ -159,40 +158,54 @@ exports.recommendations = async(dataStream, sessionInfo, epic) => {
 
       cache.put('position', buyPosition);
 
-      const positionInfo = await CapitalPosition.create({
-        positionInfo: buyPosition,
-      })
-      .then(positionInfo => { 
+      const positionInfo = await saveBuy({ positionInfo: buyPosition });
 
-          return positionInfo;
-      })
-      .catch(err => { 
-          console.log(err) 
-      });
     } else {
       console.log('No Position Opened.', lastObjects[0]);
     }
 
   } else {
 
-    if ((position + 20) >= currentStrPrice && lastObjects[2].status === 'Falling Down Fast') {
+    if (lastObjects.length > 4 && 
+      (position.level + 20) >= currentStrPrice 
+      && lastObjects[2].status === 'Falling Down Fast') {
       const closedPosition = await CapitalClose.closePosition(position, sessionInfo);
+
+      const positionInfo = await saveClose({ positionInfo: position });
+
+      const deleted = await deleteBuy();
+
       cache.put('position', null);
       cache.put('buyInfo', null);
       console.log(position, 'Position Closed');
-    } else if ((position + 2) >= currentStrPrice && lastObjects[2].status === 'Steady') {
+    } else if (lastObjects.length > 4 && 
+      (position.level + 4) >= currentStrPrice && 
+      lastObjects[2].status === 'Steady') {
       const closedPosition = await CapitalClose.closePosition(position, sessionInfo);
+
+      const positionInfo = await saveClose({ positionInfo: position });
+
+      const deleted = await deleteBuy();
+
       cache.put('position', null);
       cache.put('buyInfo', null);
-      console.log(position, 'Position Closed');
-    } else if ((position + 2) >= currentStrPrice && lastObjects[2].status === 'Falling Down Slowly') {
+      console.log(position.level, 'Position Closed');
+    } else if (lastObjects.length > 4 && 
+      (position.level + 4) >= currentStrPrice && 
+      lastObjects[2].status === 'Falling Down Slowly') {
       const closedPosition = await CapitalClose.closePosition(position, sessionInfo);
+
+      const positionInfo = await saveClose({ positionInfo: position });
+
+      const deleted = await deleteBuy();
+
       cache.put('position', null);
       cache.put('buyInfo', null);
       console.log(position, 'Position Closed');
     } else {
-      console.log(cache.get('buyInfo'))
-      console.log(`dealId: ${position}`)
+      console.log(cache.get('buyInfo'));
+      console.log(`dealId: ${position.dealId}`);
+      console.log(`target price: ${position.level}`);
     }
     
   }
@@ -200,4 +213,49 @@ exports.recommendations = async(dataStream, sessionInfo, epic) => {
 
   return statusChanges;
 
+}
+
+const saveBuy = async (buyPosition) => {
+  const positionInfo = await CapitalPosition.create({
+    positionInfo: buyPosition,
+  })
+  .then(positionInfo => { 
+
+      return positionInfo;
+  })
+  .catch(err => { 
+      console.log(err);
+      
+      return err;
+  });
+
+  return positionInfo;
+}
+
+const deleteBuy = async () => {
+
+  const tableName = '`market-analysis`.`capital-positions`';
+
+  const response = await sequelize.query(`delete from ${tableName}`, {
+    type: QueryTypes.SELECT
+  }).catch(err => {console.log(`Error37: ${err}`);});
+
+  return response;
+}
+
+const saveClose = async (closedPosition) => {
+  const positionInfo = await CapitalClosedPosition.create({
+    positionInfo: closedPosition,
+  })
+  .then(positionInfo => { 
+
+      return positionInfo;
+  })
+  .catch(err => { 
+      console.log(err);
+      
+      return err;
+  });
+
+  return positionInfo;
 }
